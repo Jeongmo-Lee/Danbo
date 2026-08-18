@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  unitPrice Int
+  unit      String?
+  memo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ledgerEntries LedgerEntry[]
+  receiptItems  ReceiptItem[]
+}
+
+model Partner {
+  id             String   @id @default(cuid())
+  name           String // 상호명
+  businessNumber String? // 사업자등록번호
+  ceoName        String? // 대표자
+  address        String? // 사업장주소
+  businessType   String? // 업태
+  businessItem   String? // 종목
+  phone          String?
+  email          String?
+  memo           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  ledgerEntries LedgerEntry[]
+  receipts      Receipt[]
+}
+
+// Singleton row (id = "default") holding the user's own business info,
+// used to prefill the 공급자 section of new receipts.
+model CompanySettings {
+  id             String   @id @default("default")
+  name           String   @default("")
+  businessNumber String   @default("")
+  ceoName        String   @default("")
+  address        String   @default("")
+  businessType   String   @default("")
+  businessItem   String   @default("")
+  phone          String   @default("")
+  updatedAt      DateTime @updatedAt
+}
+
+// SQLite has no native enum support; `type` is validated in the app layer
+// against LEDGER_TYPES ("SALE" | "PURCHASE" | "INCOME" | "EXPENSE").
+model LedgerEntry {
+  id          String   @id @default(cuid())
+  date        DateTime
+  type        String
+  productId   String?
+  productName String
+  partnerId   String?
+  partnerName String?
+  quantity    Int      @default(1)
+  unitPrice   Int
+  amount      Int
+  memo        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+  partner Partner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([type])
+}
+
+// A manually-issued Korean-style simplified receipt (간이영수증), kept for record purposes.
+model Receipt {
+  id             String   @id @default(cuid())
+  issueDate      DateTime
+  supplierName           String // 공급자 상호
+  supplierBusinessNumber String?
+  supplierCeoName        String?
+  supplierAddress        String?
+  supplierBusinessType   String?
+  supplierBusinessItem   String?
+  partnerId      String?
+  receiverName   String // 공급받는자 상호(수기 입력 가능)
+  totalAmount    Int
+  memo           String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  partner Partner?      @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  items   ReceiptItem[]
+
+  @@index([issueDate])
+}
+
+model ReceiptItem {
+  id        String @id @default(cuid())
+  receiptId String
+  productId String?
+  name      String // 품목명
+  quantity  Int
+  unitPrice Int
+  amount    Int
+
+  receipt Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
