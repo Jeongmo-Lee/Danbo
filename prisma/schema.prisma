@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  unitPrice Int
+  unit      String?
+  memo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ledgerEntries LedgerEntry[]
+}
+
+// SQLite has no native enum support; `type` is validated in the app layer
+// against LEDGER_TYPES ("SALE" | "PURCHASE" | "INCOME" | "EXPENSE").
+model LedgerEntry {
+  id          String   @id @default(cuid())
+  date        DateTime
+  type        String
+  productId   String?
+  productName String
+  quantity    Int      @default(1)
+  unitPrice   Int
+  amount      Int
+  memo        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([date])
+  @@index([type])
+}
