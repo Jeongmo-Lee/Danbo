@@ -11,12 +11,19 @@ type Product = {
   unit: string | null;
 };
 
+type Partner = {
+  id: string;
+  name: string;
+};
+
 type LedgerEntry = {
   id: string;
   date: string;
   type: LedgerTypeValue;
   productId: string | null;
   productName: string;
+  partnerId: string | null;
+  partnerName: string | null;
   quantity: number;
   unitPrice: number;
   amount: number;
@@ -28,6 +35,7 @@ type FormState = {
   type: LedgerTypeValue;
   productId: string;
   productName: string;
+  partnerId: string;
   quantity: string;
   unitPrice: string;
   memo: string;
@@ -39,6 +47,7 @@ function emptyForm(date: string): FormState {
     type: "SALE",
     productId: "",
     productName: "",
+    partnerId: "",
     quantity: "1",
     unitPrice: "",
     memo: "",
@@ -49,6 +58,7 @@ export default function LedgerPage() {
   const [date, setDate] = useState(todayDateInputValue());
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [form, setForm] = useState<FormState>(() => emptyForm(todayDateInputValue()));
   const [submitting, setSubmitting] = useState(false);
@@ -68,8 +78,15 @@ export default function LedgerPage() {
     setProducts(data);
   }
 
+  async function loadPartners() {
+    const res = await fetch("/api/partners");
+    const data = await res.json();
+    setPartners(data);
+  }
+
   useEffect(() => {
     loadProducts();
+    loadPartners();
   }, []);
 
   useEffect(() => {
@@ -190,6 +207,21 @@ export default function LedgerPage() {
             placeholder="예: 사무용 A4 용지 / 사무실 임대료"
           />
         </div>
+        <div className="sm:col-span-2">
+          <label className="label">거래처</label>
+          <select
+            className="input"
+            value={form.partnerId}
+            onChange={(e) => setForm((f) => ({ ...f, partnerId: e.target.value }))}
+          >
+            <option value="">선택 안 함</option>
+            {partners.map((partner) => (
+              <option key={partner.id} value={partner.id}>
+                {partner.name}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="label">수량</label>
           <input
@@ -246,6 +278,7 @@ export default function LedgerPage() {
               <tr>
                 <th>구분</th>
                 <th>항목</th>
+                <th>거래처</th>
                 <th>수량</th>
                 <th>단가</th>
                 <th>금액</th>
@@ -268,6 +301,7 @@ export default function LedgerPage() {
                     </span>
                   </td>
                   <td className="font-medium text-slate-800">{entry.productName}</td>
+                  <td className="text-slate-500">{entry.partnerName ?? "-"}</td>
                   <td>{entry.quantity}</td>
                   <td>{formatCurrency(entry.unitPrice)}</td>
                   <td className="font-medium">{formatCurrency(entry.amount)}</td>

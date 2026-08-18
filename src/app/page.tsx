@@ -30,10 +30,11 @@ export default async function DashboardPage() {
   tomorrowStart.setDate(tomorrowStart.getDate() + 1);
   const monthStart = startOfMonth(now);
 
-  const [todayEntries, monthEntries, productCount, recentEntries] = await Promise.all([
+  const [todayEntries, monthEntries, productCount, partnerCount, recentEntries] = await Promise.all([
     prisma.ledgerEntry.findMany({ where: { date: { gte: todayStart, lt: tomorrowStart } } }),
     prisma.ledgerEntry.findMany({ where: { date: { gte: monthStart } } }),
     prisma.product.count(),
+    prisma.partner.count(),
     prisma.ledgerEntry.findMany({ orderBy: [{ date: "desc" }, { createdAt: "desc" }], take: 8 }),
   ]);
 
@@ -82,6 +83,14 @@ export default async function DashboardPage() {
         <Link href="/products" className="card block transition-shadow hover:shadow-md">
           <p className="text-sm font-semibold text-slate-800">상품 관리</p>
           <p className="mt-1 text-xs text-slate-500">현재 등록된 상품 {productCount}건</p>
+        </Link>
+        <Link href="/partners" className="card block transition-shadow hover:shadow-md">
+          <p className="text-sm font-semibold text-slate-800">거래처 관리</p>
+          <p className="mt-1 text-xs text-slate-500">현재 등록된 거래처 {partnerCount}건</p>
+        </Link>
+        <Link href="/receipts/new" className="card block transition-shadow hover:shadow-md">
+          <p className="text-sm font-semibold text-slate-800">영수증 작성</p>
+          <p className="mt-1 text-xs text-slate-500">기록용 영수증을 새로 작성하세요.</p>
         </Link>
         <div className="card">
           <p className="text-sm font-semibold text-slate-800">이번 달 순이익</p>

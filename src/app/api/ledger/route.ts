@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   const entries = await prisma.ledgerEntry.findMany({
     where,
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
-    include: { product: true },
+    include: { product: true, partner: true },
   });
 
   return NextResponse.json(entries);
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { date, type, productId, productName, quantity, unitPrice, memo } = body;
+  const { date, type, productId, productName, partnerId, quantity, unitPrice, memo } = body;
 
   if (!isLedgerType(type)) {
     return NextResponse.json({ error: "장부 유형이 올바르지 않습니다." }, { status: 400 });
@@ -78,6 +78,16 @@ export async function POST(request: NextRequest) {
     if (product) linkedProductId = product.id;
   }
 
+  let linkedPartnerId: string | null = null;
+  let linkedPartnerName: string | null = null;
+  if (typeof partnerId === "string" && partnerId.trim()) {
+    const partner = await prisma.partner.findUnique({ where: { id: partnerId } });
+    if (partner) {
+      linkedPartnerId = partner.id;
+      linkedPartnerName = partner.name;
+    }
+  }
+
   const amount = Math.round(parsedQuantity * parsedUnitPrice);
 
   const entry = await prisma.ledgerEntry.create({
@@ -86,12 +96,14 @@ export async function POST(request: NextRequest) {
       type,
       productId: linkedProductId,
       productName: productName.trim(),
+      partnerId: linkedPartnerId,
+      partnerName: linkedPartnerName,
       quantity: Math.round(parsedQuantity),
       unitPrice: Math.round(parsedUnitPrice),
       amount,
       memo: typeof memo === "string" && memo.trim() ? memo.trim() : null,
     },
-    include: { product: true },
+    include: { product: true, partner: true },
   });
 
   return NextResponse.json(entry, { status: 201 });
