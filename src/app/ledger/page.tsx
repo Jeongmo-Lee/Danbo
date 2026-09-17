@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency, todayDateInputValue, LEDGER_TYPE_LABEL } from "@/lib/format";
 import { LEDGER_TYPES, type LedgerTypeValue } from "@/lib/ledger-types";
+import { useSuggestions } from "@/lib/use-suggestions";
 
 const PAYMENT_METHODS = ["CASH", "BANK", "CREDIT"] as const;
 type PaymentMethodValue = (typeof PAYMENT_METHODS)[number];
@@ -74,6 +75,8 @@ export default function LedgerPage() {
   const [form, setForm] = useState<FormState>(() => emptyForm(todayDateInputValue()));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const productNameSuggestions = useSuggestions("ledgerProductName");
+  const memoSuggestions = useSuggestions("ledgerMemo");
 
   async function loadEntries(targetDate: string) {
     setLoading(true);
@@ -213,10 +216,16 @@ export default function LedgerPage() {
           <input
             className="input"
             required
+            list="productNameSuggestions"
             value={form.productName}
             onChange={(e) => setForm((f) => ({ ...f, productId: "", productName: e.target.value }))}
             placeholder="예: 사무용 A4 용지 / 사무실 임대료"
           />
+          <datalist id="productNameSuggestions">
+            {productNameSuggestions.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
         </div>
         <div className="sm:col-span-2">
           <label className="label">거래처</label>
@@ -279,10 +288,16 @@ export default function LedgerPage() {
           <label className="label">메모</label>
           <input
             className="input"
+            list="ledgerMemoSuggestions"
             value={form.memo}
             onChange={(e) => setForm((f) => ({ ...f, memo: e.target.value }))}
             placeholder="선택 입력"
           />
+          <datalist id="ledgerMemoSuggestions">
+            {memoSuggestions.map((memo) => (
+              <option key={memo} value={memo} />
+            ))}
+          </datalist>
         </div>
         <div className="flex items-end sm:col-span-2">
           <button type="submit" className="btn-primary w-full" disabled={submitting}>

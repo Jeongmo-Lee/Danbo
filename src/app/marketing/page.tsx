@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { todayDateInputValue } from "@/lib/format";
+import { useSuggestions } from "@/lib/use-suggestions";
 
 type MarketingRecord = {
   id: string;
@@ -20,6 +21,7 @@ export default function MarketingPage() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const titleSuggestions = useSuggestions("marketingTitle");
 
   async function load() {
     setLoading(true);
@@ -91,10 +93,16 @@ export default function MarketingPage() {
           <input
             className="input"
             required
+            list="marketingTitleSuggestions"
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             placeholder="예: 가을 신상 원단 DP 교체"
           />
+          <datalist id="marketingTitleSuggestions">
+            {titleSuggestions.map((title) => (
+              <option key={title} value={title} />
+            ))}
+          </datalist>
         </div>
         <div className="sm:col-span-2">
           <label className="label">성과 지표</label>

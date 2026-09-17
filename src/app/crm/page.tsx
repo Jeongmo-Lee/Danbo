@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSuggestions } from "@/lib/use-suggestions";
 
 type Partner = { id: string; name: string };
 
@@ -32,6 +33,8 @@ export default function CrmPage() {
   const [activityCustomerId, setActivityCustomerId] = useState<string | null>(null);
   const [activityType, setActivityType] = useState("상담");
   const [activityContent, setActivityContent] = useState("");
+  const gradeSuggestions = useSuggestions("customerGrade");
+  const tagSuggestions = useSuggestions("customerTags");
 
   async function load() {
     setLoading(true);
@@ -113,10 +116,16 @@ export default function CrmPage() {
           <label className="label">등급</label>
           <input
             className="input"
+            list="customerGradeSuggestions"
             value={form.grade}
             onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value }))}
             placeholder="VIP, 일반 등"
           />
+          <datalist id="customerGradeSuggestions">
+            {gradeSuggestions.map((grade) => (
+              <option key={grade} value={grade} />
+            ))}
+          </datalist>
         </div>
         <div>
           <label className="label">연동 거래처</label>
@@ -141,10 +150,16 @@ export default function CrmPage() {
           <label className="label">태그</label>
           <input
             className="input"
+            list="customerTagSuggestions"
             value={form.tags}
             onChange={(e) => setForm((f) => ({ ...f, tags: e.target.value }))}
             placeholder="콤마로 구분 (예: 도매,단골)"
           />
+          <datalist id="customerTagSuggestions">
+            {tagSuggestions.map((tag) => (
+              <option key={tag} value={tag} />
+            ))}
+          </datalist>
         </div>
         <div className="flex items-end">
           <button type="submit" className="btn-primary w-full" disabled={submitting}>

@@ -231,86 +231,116 @@ export default function PartnersPage() {
               </tr>
             </thead>
             <tbody>
-              {partners.map((partner) => (
-                <tr key={partner.id}>
-                  {editingId === partner.id ? (
-                    <>
-                      <td>
-                        <input
-                          className="input"
-                          value={editForm.name}
-                          onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="input"
-                          value={editForm.businessNumber}
-                          onChange={(e) => setEditForm((f) => ({ ...f, businessNumber: e.target.value }))}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="input"
-                          value={editForm.ceoName}
-                          onChange={(e) => setEditForm((f) => ({ ...f, ceoName: e.target.value }))}
-                        />
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
+              {partners.map((partner) =>
+                editingId === partner.id ? (
+                  <tr key={partner.id}>
+                    <td colSpan={6} className="bg-slate-50">
+                      <div className="grid grid-cols-1 gap-3 p-2 sm:grid-cols-4">
+                        <div className="sm:col-span-2">
+                          <label className="label">상호명</label>
+                          <input
+                            className="input"
+                            value={editForm.name}
+                            onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">사업자등록번호</label>
+                          <input
+                            className="input"
+                            value={editForm.businessNumber}
+                            onChange={(e) => setEditForm((f) => ({ ...f, businessNumber: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">대표자</label>
+                          <input
+                            className="input"
+                            value={editForm.ceoName}
+                            onChange={(e) => setEditForm((f) => ({ ...f, ceoName: e.target.value }))}
+                          />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="label">사업장주소</label>
+                          <input
+                            className="input"
+                            value={editForm.address}
+                            onChange={(e) => setEditForm((f) => ({ ...f, address: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">업태</label>
                           <input
                             className="input"
                             value={editForm.businessType}
                             onChange={(e) => setEditForm((f) => ({ ...f, businessType: e.target.value }))}
                           />
+                        </div>
+                        <div>
+                          <label className="label">종목</label>
                           <input
                             className="input"
                             value={editForm.businessItem}
                             onChange={(e) => setEditForm((f) => ({ ...f, businessItem: e.target.value }))}
                           />
                         </div>
-                      </td>
-                      <td>
-                        <input
-                          className="input"
-                          value={editForm.phone}
-                          onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
-                        />
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
-                          <button className="btn-primary px-2 py-1 text-xs" onClick={() => handleUpdate(partner.id)}>
+                        <div>
+                          <label className="label">연락처</label>
+                          <input
+                            className="input"
+                            value={editForm.phone}
+                            onChange={(e) => setEditForm((f) => ({ ...f, phone: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="label">이메일</label>
+                          <input
+                            className="input"
+                            value={editForm.email}
+                            onChange={(e) => setEditForm((f) => ({ ...f, email: e.target.value }))}
+                          />
+                        </div>
+                        <div className="sm:col-span-3">
+                          <label className="label">메모</label>
+                          <input
+                            className="input"
+                            value={editForm.memo}
+                            onChange={(e) => setEditForm((f) => ({ ...f, memo: e.target.value }))}
+                          />
+                        </div>
+                        <div className="flex items-end gap-2">
+                          <button className="btn-primary flex-1" onClick={() => handleUpdate(partner.id)}>
                             저장
                           </button>
-                          <button className="btn-secondary px-2 py-1 text-xs" onClick={() => setEditingId(null)}>
+                          <button className="btn-secondary flex-1" onClick={() => setEditingId(null)}>
                             취소
                           </button>
                         </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="font-medium text-slate-800">{partner.name}</td>
-                      <td>{partner.businessNumber ?? "-"}</td>
-                      <td>{partner.ceoName ?? "-"}</td>
-                      <td className="text-slate-500">
-                        {[partner.businessType, partner.businessItem].filter(Boolean).join(" / ") || "-"}
-                      </td>
-                      <td>{partner.phone ?? "-"}</td>
-                      <td>
-                        <div className="flex gap-1">
-                          <button className="btn-secondary px-2 py-1 text-xs" onClick={() => startEdit(partner)}>
-                            수정
-                          </button>
-                          <button className="btn-danger px-2 py-1 text-xs" onClick={() => handleDelete(partner.id)}>
-                            삭제
-                          </button>
-                        </div>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))}
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={partner.id}>
+                    <td className="font-medium text-slate-800">{partner.name}</td>
+                    <td>{partner.businessNumber ?? "-"}</td>
+                    <td>{partner.ceoName ?? "-"}</td>
+                    <td className="text-slate-500">
+                      {[partner.businessType, partner.businessItem].filter(Boolean).join(" / ") || "-"}
+                    </td>
+                    <td>{partner.phone ?? "-"}</td>
+                    <td>
+                      <div className="flex gap-1">
+                        <button className="btn-secondary px-2 py-1 text-xs" onClick={() => startEdit(partner)}>
+                          수정
+                        </button>
+                        <button className="btn-danger px-2 py-1 text-xs" onClick={() => handleDelete(partner.id)}>
+                          삭제
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         )}
