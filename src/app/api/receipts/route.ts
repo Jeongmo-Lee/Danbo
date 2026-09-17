@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
+import { formatCurrency } from "@/lib/format";
 
 type ReceiptItemInput = {
   productId?: string | null;
@@ -105,6 +107,13 @@ export async function POST(request: NextRequest) {
     },
     include: { items: true, partner: true },
   });
+
+  await logAudit(
+    "Receipt",
+    receipt.id,
+    "CREATE",
+    `영수증 발행: ${receipt.receiverName} ${formatCurrency(receipt.totalAmount)}`
+  );
 
   return NextResponse.json(receipt, { status: 201 });
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const records = await prisma.marketingRecord.findMany({
@@ -32,6 +33,8 @@ export async function POST(request: NextRequest) {
       memo: typeof memo === "string" && memo.trim() ? memo.trim() : null,
     },
   });
+
+  await logAudit("MarketingRecord", record.id, "CREATE", `마케팅 기록 "${record.title}" (${record.channel}) 등록`);
 
   return NextResponse.json(record, { status: 201 });
 }

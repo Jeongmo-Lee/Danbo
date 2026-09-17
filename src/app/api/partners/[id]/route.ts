@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,6 +26,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const partner = await prisma.partner.update({ where: { id }, data });
+    await logAudit("Partner", partner.id, "UPDATE", `거래처 "${partner.name}" 수정`);
     return NextResponse.json(partner);
   } catch {
     return NextResponse.json({ error: "거래처를 찾을 수 없습니다." }, { status: 404 });
@@ -34,7 +36,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    await prisma.partner.delete({ where: { id } });
+    const deleted = await prisma.partner.delete({ where: { id } });
+    await logAudit("Partner", deleted.id, "DELETE", `거래처 "${deleted.name}" 삭제`);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "거래처를 찾을 수 없습니다." }, { status: 404 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -27,6 +28,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       content: content.trim(),
     },
   });
+
+  await logAudit(
+    "CustomerActivity",
+    activity.id,
+    "CREATE",
+    `고객 "${customer.name}" 활동 기록 [${activity.type}] 추가`
+  );
 
   return NextResponse.json(activity, { status: 201 });
 }

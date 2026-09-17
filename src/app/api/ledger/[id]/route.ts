@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isLedgerType } from "@/lib/ledger-types";
+import { logAudit } from "@/lib/audit";
+import { LEDGER_TYPE_LABEL, formatCurrency } from "@/lib/format";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -87,13 +89,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     include: { product: true, partner: true },
   });
 
+  await logAudit(
+    "LedgerEntry",
+    updated.id,
+    "UPDATE",
+    `${LEDGER_TYPE_LABEL[updated.type]} ${updated.productName} ${formatCurrency(updated.amount)} 수정`
+  );
+
   return NextResponse.json(updated);
 }
 
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    await prisma.ledgerEntry.delete({ where: { id } });
+    const deleted = await prisma.ledgerEntry.delete({ where: { id } });
+    await logAudit(
+      "LedgerEntry",
+      deleted.id,
+      "DELETE",
+      `${LEDGER_TYPE_LABEL[deleted.type]} ${deleted.productName} ${formatCurrency(deleted.amount)} 삭제`
+    );
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "장부 항목을 찾을 수 없습니다." }, { status: 404 });

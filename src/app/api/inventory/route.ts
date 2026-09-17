@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 const MOVEMENT_TYPES = ["IN", "OUT", "ADJUST"] as const;
 type MovementType = (typeof MOVEMENT_TYPES)[number];
@@ -75,6 +76,14 @@ export async function POST(request: NextRequest) {
       reason: typeof reason === "string" && reason.trim() ? reason.trim() : null,
     },
   });
+
+  const MOVEMENT_LABEL: Record<string, string> = { IN: "입고", OUT: "출고", ADJUST: "조정" };
+  await logAudit(
+    "StockMovement",
+    inventoryItem.id,
+    "CREATE",
+    `${product.name} 재고 ${MOVEMENT_LABEL[type]} ${Math.round(parsedQuantity)}`
+  );
 
   const updated = await prisma.inventoryItem.findUnique({
     where: { id: inventoryItem.id },

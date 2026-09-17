@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -42,6 +43,8 @@ export async function POST(request: NextRequest) {
       content: content.trim(),
     },
   });
+
+  await logAudit("DailyNote", note.id, "CREATE", `메모 등록: ${note.content.slice(0, 40)}`);
 
   return NextResponse.json(note, { status: 201 });
 }

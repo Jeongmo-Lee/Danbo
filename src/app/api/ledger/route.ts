@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { isLedgerType } from "@/lib/ledger-types";
+import { logAudit } from "@/lib/audit";
+import { LEDGER_TYPE_LABEL, formatCurrency } from "@/lib/format";
 
 function parseDateParam(value: string | null): Date | null {
   if (!value) return null;
@@ -124,6 +126,13 @@ export async function POST(request: NextRequest) {
       },
     });
   }
+
+  await logAudit(
+    "LedgerEntry",
+    entry.id,
+    "CREATE",
+    `${LEDGER_TYPE_LABEL[type]} ${entry.productName} ${formatCurrency(entry.amount)} 등록`
+  );
 
   return NextResponse.json(entry, { status: 201 });
 }

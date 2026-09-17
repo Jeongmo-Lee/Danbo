@@ -197,3 +197,16 @@ model DailyNote {
 
   @@index([date])
 }
+
+// action: "CREATE" | "UPDATE" | "DELETE"
+model AuditLog {
+  id        String   @id @default(cuid())
+  entity    String // 예: "LedgerEntry", "Product", "Customer" ...
+  entityId  String
+  action    String
+  summary   String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+}

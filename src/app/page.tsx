@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatCurrency, LEDGER_TYPE_LABEL } from "@/lib/format";
 import type { LedgerTypeValue } from "@/lib/ledger-types";
+import { TrendChart } from "./trend-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,10 @@ function sumByType(entries: { type: string; amount: number }[]) {
     totals[entry.type as LedgerTypeValue] += entry.amount;
   }
   return totals;
+}
+
+function monthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 export default async function DashboardPage() {
@@ -64,6 +69,33 @@ export default async function DashboardPage() {
 
   const todayNet = todayTotals.SALE + todayTotals.INCOME - todayTotals.PURCHASE - todayTotals.EXPENSE;
   const monthNet = monthTotals.SALE + monthTotals.INCOME - monthTotals.PURCHASE - monthTotals.EXPENSE;
+
+  // 최근 6개월 손익 추이
+  const sixMonthsAgoStart = new Date(monthStart);
+  sixMonthsAgoStart.setMonth(sixMonthsAgoStart.getMonth() - 5);
+  const trendEntries = await prisma.ledgerEntry.findMany({
+    where: { date: { gte: sixMonthsAgoStart } },
+    select: { date: true, type: true, amount: true },
+  });
+  const monthBuckets = new Map<string, { sale: number; purchase: number; income: number; expense: number }>();
+  for (let i = 0; i < 6; i++) {
+    const d = new Date(sixMonthsAgoStart);
+    d.setMonth(d.getMonth() + i);
+    monthBuckets.set(monthKey(d), { sale: 0, purchase: 0, income: 0, expense: 0 });
+  }
+  for (const entry of trendEntries) {
+    const key = monthKey(new Date(entry.date));
+    const bucket = monthBuckets.get(key);
+    if (!bucket) continue;
+    if (entry.type === "SALE") bucket.sale += entry.amount;
+    else if (entry.type === "PURCHASE") bucket.purchase += entry.amount;
+    else if (entry.type === "INCOME") bucket.income += entry.amount;
+    else if (entry.type === "EXPENSE") bucket.expense += entry.amount;
+  }
+  const trendPoints = Array.from(monthBuckets.entries()).map(([key, b]) => ({
+    label: `${Number(key.split("-")[1])}월`,
+    value: b.sale + b.income - b.purchase - b.expense,
+  }));
 
   return (
     <div className="flex flex-col gap-8">
@@ -112,6 +144,13 @@ export default async function DashboardPage() {
         </div>
       </section>
 
+      <section>
+        <h2 className="mb-3 text-sm font-semibold text-slate-600">최근 6개월 손익 추이</h2>
+        <div className="card">
+          <TrendChart points={trendPoints} />
+        </div>
+      </section>
+
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Link href="/ledger" className="card block transition-shadow hover:shadow-md">
           <p className="text-sm font-semibold text-slate-800">일일 회계장부 기입</p>
@@ -148,6 +187,10 @@ export default async function DashboardPage() {
           <p className="mt-1 text-xs text-slate-500">
             {todayNotes.length > 0 ? `오늘 메모 ${todayNotes.length}건` : "오늘 특이사항 기록하기"}
           </p>
+        </Link>
+        <Link href="/audit" className="card block transition-shadow hover:shadow-md">
+          <p className="text-sm font-semibold text-slate-800">변경 이력</p>
+          <p className="mt-1 text-xs text-slate-500">등록/수정/삭제 기록 확인하기</p>
         </Link>
         <div className="card">
           <p className="text-sm font-semibold text-slate-800">이번 달 순이익</p>

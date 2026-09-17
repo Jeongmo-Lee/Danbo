@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 const CUSTOMER_TYPES = ["DOMESTIC", "FOREIGN"] as const;
 
@@ -34,6 +35,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const updated = await prisma.customer.update({ where: { id }, data, include: { partner: true } });
+    await logAudit("Customer", updated.id, "UPDATE", `고객 "${updated.name}" 수정`);
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "고객을 찾을 수 없습니다." }, { status: 404 });
@@ -43,7 +45,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    await prisma.customer.delete({ where: { id } });
+    const deleted = await prisma.customer.delete({ where: { id } });
+    await logAudit("Customer", deleted.id, "DELETE", `고객 "${deleted.name}" 삭제`);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "고객을 찾을 수 없습니다." }, { status: 404 });

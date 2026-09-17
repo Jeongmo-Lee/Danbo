@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 const CUSTOMER_TYPES = ["DOMESTIC", "FOREIGN"] as const;
 
@@ -42,6 +43,8 @@ export async function POST(request: NextRequest) {
     },
     include: { partner: true },
   });
+
+  await logAudit("Customer", customer.id, "CREATE", `고객 "${customer.name}" 등록`);
 
   return NextResponse.json(customer, { status: 201 });
 }

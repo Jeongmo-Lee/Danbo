@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,6 +37,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       where: { id },
       data,
     });
+    await logAudit("Product", product.id, "UPDATE", `상품 "${product.name}" 수정`);
     return NextResponse.json(product);
   } catch {
     return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });
@@ -45,7 +47,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   try {
-    await prisma.product.delete({ where: { id } });
+    const deleted = await prisma.product.delete({ where: { id } });
+    await logAudit("Product", deleted.id, "DELETE", `상품 "${deleted.name}" 삭제`);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "상품을 찾을 수 없습니다." }, { status: 404 });

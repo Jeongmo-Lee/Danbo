@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -26,6 +27,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       data,
       include: { product: true },
     });
+    await logAudit(
+      "InventoryItem",
+      updated.id,
+      "UPDATE",
+      `${updated.product.name} 안전재고/위치 설정 변경 (안전재고 ${updated.safetyStock})`
+    );
     return NextResponse.json(updated);
   } catch {
     return NextResponse.json({ error: "재고 항목을 찾을 수 없습니다." }, { status: 404 });

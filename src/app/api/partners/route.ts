@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const partners = await prisma.partner.findMany({
@@ -29,6 +30,8 @@ export async function POST(request: NextRequest) {
       memo: optionalText(memo),
     },
   });
+
+  await logAudit("Partner", partner.id, "CREATE", `거래처 "${partner.name}" 등록`);
 
   return NextResponse.json(partner, { status: 201 });
 }

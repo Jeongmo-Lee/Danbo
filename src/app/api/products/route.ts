@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
 
 export async function GET() {
   const products = await prisma.product.findMany({
@@ -28,6 +29,8 @@ export async function POST(request: NextRequest) {
       memo: typeof memo === "string" && memo.trim() ? memo.trim() : null,
     },
   });
+
+  await logAudit("Product", product.id, "CREATE", `상품 "${product.name}" 등록`);
 
   return NextResponse.json(product, { status: 201 });
 }

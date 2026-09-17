@@ -28,6 +28,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <NavLink href="/partners">거래처</NavLink>
                 <NavLink href="/receipts">영수증</NavLink>
                 <NavLink href="/export">내보내기</NavLink>
+                <NavLink href="/audit">변경이력</NavLink>
                 <NavLink href="/settings">설정</NavLink>
                 <LogoutButton />
               </nav>
