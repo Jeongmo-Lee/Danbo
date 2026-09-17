@@ -8,7 +8,7 @@ import { replaceJournalEntryForLedger, isPaymentMethod } from "@/lib/accounting"
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
-  const { date, type, productId, productName, partnerId, partnerName, quantity, unitPrice, memo, paymentMethod } =
+  const { date, type, productId, productName, partnerId, partnerName, quantity, unitPrice, memo, paymentMethod, isSample } =
     body;
 
   const existing = await prisma.ledgerEntry.findUnique({ where: { id } });
@@ -91,6 +91,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       return NextResponse.json({ error: "결제수단이 올바르지 않습니다." }, { status: 400 });
     }
     data.paymentMethod = paymentMethod;
+  }
+
+  if (isSample !== undefined) {
+    data.isSample = Boolean(isSample);
   }
 
   const updated = await prisma.ledgerEntry.update({

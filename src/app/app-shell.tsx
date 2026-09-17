@@ -30,6 +30,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavLink href="/receipts">영수증</NavLink>
             <NavLink href="/accounts">계정과목</NavLink>
             <NavLink href="/accounting/journal">분개장</NavLink>
+            <NavLink href="/reports/sample-conversion">샘플전환</NavLink>
             <NavLink href="/export">내보내기</NavLink>
             <NavLink href="/audit">변경이력</NavLink>
             <NavLink href="/settings">설정</NavLink>

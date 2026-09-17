@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { date, type, productId, productName, partnerId, partnerName, quantity, unitPrice, memo, paymentMethod } =
+  const { date, type, productId, productName, partnerId, partnerName, quantity, unitPrice, memo, paymentMethod, isSample } =
     body;
 
   if (!isLedgerType(type)) {
@@ -111,6 +111,7 @@ export async function POST(request: NextRequest) {
       unitPrice: Math.round(parsedUnitPrice),
       amount,
       paymentMethod: resolvedPaymentMethod,
+      isSample: Boolean(isSample),
       memo: typeof memo === "string" && memo.trim() ? memo.trim() : null,
     },
     include: { product: true, partner: true },

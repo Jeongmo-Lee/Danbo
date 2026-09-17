@@ -35,6 +35,7 @@ type LedgerEntry = {
   unitPrice: number;
   amount: number;
   paymentMethod: PaymentMethodValue;
+  isSample: boolean;
   memo: string | null;
 };
 
@@ -154,7 +155,6 @@ export default function LedgerPage() {
   }, [products, productNameSuggestions]);
 
   const itemsSubtotal = items.reduce((sum, row) => {
-    if (isSample) return sum; // 무상 샘플 제공은 금액 0으로 처리
     const qty = Number(row.quantity) || 0;
     const price = Number(row.unitPrice) || 0;
     return sum + Math.round(qty * price);
@@ -167,7 +167,8 @@ export default function LedgerPage() {
     productName: string,
     quantity: number,
     unitPrice: number,
-    productId?: string
+    productId?: string,
+    sample = false
   ) {
     const res = await fetch("/api/ledger", {
       method: "POST",
@@ -183,6 +184,7 @@ export default function LedgerPage() {
         unitPrice,
         paymentMethod,
         memo,
+        isSample: sample,
       }),
     });
     if (!res.ok) {
@@ -199,18 +201,18 @@ export default function LedgerPage() {
       // 같은 거래처/날짜/결제수단으로 품목마다 각각 장부 항목을 하나씩 생성한다.
       for (const row of items) {
         const qty = Number(row.quantity) || 1;
-        const unitPrice = isSample ? 0 : Number(row.unitPrice) || 0;
-        await postLedgerEntry(row.productName, qty, unitPrice, row.productId);
+        const unitPrice = Number(row.unitPrice) || 0;
+        await postLedgerEntry(row.productName, qty, unitPrice, row.productId, isSample);
       }
 
       // 부가세는 품목 소계 기준으로 계산해 별도 한 줄로 추가한다.
       if (includeVat && vatAmount > 0) {
-        await postLedgerEntry("부가세(VAT 10%)", 1, vatAmount);
+        await postLedgerEntry("부가세(VAT 10%)", 1, vatAmount, undefined, isSample);
       }
 
       // 택배비는 모든 품목/부가세 계산이 끝난 뒤 정액으로 별도 추가한다.
       if (includeShipping) {
-        await postLedgerEntry("택배비", 1, SHIPPING_FEE);
+        await postLedgerEntry("택배비", 1, SHIPPING_FEE, undefined, isSample);
       }
 
       resetBatch();
@@ -320,7 +322,6 @@ export default function LedgerPage() {
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-slate-500">
               품목 (같은 거래처에서 여러 개 주문 시 아래에 추가하세요)
-              {isSample && <span className="ml-2 text-amber-600">— 샘플 체크 시 단가는 무시되고 0원으로 기록됩니다</span>}
             </p>
             <button type="button" className="btn-secondary px-3 py-1 text-xs" onClick={addItemRow}>
               + 품목 추가
@@ -407,7 +408,7 @@ export default function LedgerPage() {
               checked={isSample}
               onChange={(e) => setIsSample(e.target.checked)}
             />
-            무상 샘플 제공 (금액 0원 처리)
+            샘플 주문으로 표시 (매출은 정상 반영, 전환 추적용)
           </label>
           <label className="flex items-center gap-2">
             <input
@@ -490,7 +491,14 @@ export default function LedgerPage() {
                       {LEDGER_TYPE_LABEL[entry.type]}
                     </span>
                   </td>
-                  <td className="font-medium text-slate-800">{entry.productName}</td>
+                  <td className="font-medium text-slate-800">
+                    {entry.productName}
+                    {entry.isSample && (
+                      <span className="ml-2 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        샘플
+                      </span>
+                    )}
+                  </td>
                   <td className="text-slate-500">{entry.partnerName ?? "-"}</td>
                   <td>{entry.quantity}</td>
                   <td>{formatCurrency(entry.unitPrice)}</td>

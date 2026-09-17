@@ -68,6 +68,7 @@ model LedgerEntry {
   unitPrice     Int
   amount        Int
   paymentMethod String   @default("CASH") // "CASH" | "BANK" | "CREDIT"(외상)
+  isSample      Boolean  @default(false) // 샘플 주문 여부 (매출로 정상 집계, 전환율 추적용 표시)
   memo          String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
