@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { isLedgerType } from "@/lib/ledger-types";
 import { logAudit } from "@/lib/audit";
 import { LEDGER_TYPE_LABEL, formatCurrency } from "@/lib/format";
+import { replaceJournalEntryForLedger, isPaymentMethod } from "@/lib/accounting";
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
-  const { date, type, productId, productName, partnerId, quantity, unitPrice, memo } = body;
+  const { date, type, productId, productName, partnerId, quantity, unitPrice, memo, paymentMethod } = body;
 
   const existing = await prisma.ledgerEntry.findUnique({ where: { id } });
   if (!existing) {
@@ -83,6 +84,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     data.memo = typeof memo === "string" && memo.trim() ? memo.trim() : null;
   }
 
+  if (paymentMethod !== undefined) {
+    if (!isPaymentMethod(paymentMethod)) {
+      return NextResponse.json({ error: "결제수단이 올바르지 않습니다." }, { status: 400 });
+    }
+    data.paymentMethod = paymentMethod;
+  }
+
   const updated = await prisma.ledgerEntry.update({
     where: { id },
     data,
@@ -95,6 +103,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     "UPDATE",
     `${LEDGER_TYPE_LABEL[updated.type]} ${updated.productName} ${formatCurrency(updated.amount)} 수정`
   );
+
+  await replaceJournalEntryForLedger({
+    id: updated.id,
+    date: updated.date,
+    type: updated.type,
+    amount: updated.amount,
+    paymentMethod: updated.paymentMethod,
+    memo: updated.memo,
+  });
 
   return NextResponse.json(updated);
 }

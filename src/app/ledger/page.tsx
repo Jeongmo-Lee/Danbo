@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { formatCurrency, todayDateInputValue, LEDGER_TYPE_LABEL } from "@/lib/format";
 import { LEDGER_TYPES, type LedgerTypeValue } from "@/lib/ledger-types";
 
+const PAYMENT_METHODS = ["CASH", "BANK", "CREDIT"] as const;
+type PaymentMethodValue = (typeof PAYMENT_METHODS)[number];
+const PAYMENT_METHOD_LABEL: Record<PaymentMethodValue, string> = {
+  CASH: "현금",
+  BANK: "카드/계좌이체",
+  CREDIT: "외상",
+};
+
 type Product = {
   id: string;
   name: string;
@@ -27,6 +35,7 @@ type LedgerEntry = {
   quantity: number;
   unitPrice: number;
   amount: number;
+  paymentMethod: PaymentMethodValue;
   memo: string | null;
 };
 
@@ -38,6 +47,7 @@ type FormState = {
   partnerId: string;
   quantity: string;
   unitPrice: string;
+  paymentMethod: PaymentMethodValue;
   memo: string;
 };
 
@@ -50,6 +60,7 @@ function emptyForm(date: string): FormState {
     partnerId: "",
     quantity: "1",
     unitPrice: "",
+    paymentMethod: "CASH",
     memo: "",
   };
 }
@@ -223,6 +234,20 @@ export default function LedgerPage() {
           </select>
         </div>
         <div>
+          <label className="label">결제수단</label>
+          <select
+            className="input"
+            value={form.paymentMethod}
+            onChange={(e) => setForm((f) => ({ ...f, paymentMethod: e.target.value as PaymentMethodValue }))}
+          >
+            {PAYMENT_METHODS.map((pm) => (
+              <option key={pm} value={pm}>
+                {PAYMENT_METHOD_LABEL[pm]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label className="label">수량</label>
           <input
             className="input"
@@ -282,6 +307,7 @@ export default function LedgerPage() {
                 <th>수량</th>
                 <th>단가</th>
                 <th>금액</th>
+                <th>결제</th>
                 <th>메모</th>
                 <th className="w-20">관리</th>
               </tr>
@@ -305,6 +331,7 @@ export default function LedgerPage() {
                   <td>{entry.quantity}</td>
                   <td>{formatCurrency(entry.unitPrice)}</td>
                   <td className="font-medium">{formatCurrency(entry.amount)}</td>
+                  <td className="text-slate-500">{PAYMENT_METHOD_LABEL[entry.paymentMethod] ?? entry.paymentMethod}</td>
                   <td className="text-slate-500">{entry.memo ?? "-"}</td>
                   <td>
                     <button className="btn-danger px-2 py-1 text-xs" onClick={() => handleDelete(entry.id)}>

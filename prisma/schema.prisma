@@ -57,22 +57,24 @@ model CompanySettings {
 // SQLite has no native enum support; `type` is validated in the app layer
 // against LEDGER_TYPES ("SALE" | "PURCHASE" | "INCOME" | "EXPENSE").
 model LedgerEntry {
-  id          String   @id @default(cuid())
-  date        DateTime
-  type        String
-  productId   String?
-  productName String
-  partnerId   String?
-  partnerName String?
-  quantity    Int      @default(1)
-  unitPrice   Int
-  amount      Int
-  memo        String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  date          DateTime
+  type          String
+  productId     String?
+  productName   String
+  partnerId     String?
+  partnerName   String?
+  quantity      Int      @default(1)
+  unitPrice     Int
+  amount        Int
+  paymentMethod String   @default("CASH") // "CASH" | "BANK" | "CREDIT"(외상)
+  memo          String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-  partner Partner? @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  product      Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  partner      Partner?      @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  journalEntry JournalEntry?
 
   @@index([date])
   @@index([type])
@@ -209,4 +211,46 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([entity, entityId])
+}
+
+// ============================================
+// 복식부기 (계정과목 / 분개장)
+// ============================================
+
+// category: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE"
+model Account {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  category  String
+  createdAt DateTime @default(now())
+
+  lines JournalLine[]
+}
+
+model JournalEntry {
+  id            String   @id @default(cuid())
+  date          DateTime
+  memo          String?
+  ledgerEntryId String?  @unique
+  createdAt     DateTime @default(now())
+
+  ledgerEntry LedgerEntry? @relation(fields: [ledgerEntryId], references: [id], onDelete: Cascade)
+  lines       JournalLine[]
+
+  @@index([date])
+}
+
+// side: "DEBIT"(차변) | "CREDIT"(대변)
+model JournalLine {
+  id             String @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  side           String
+  amount         Int
+
+  journalEntry JournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      Account      @relation(fields: [accountId], references: [id])
+
+  @@index([accountId])
 }

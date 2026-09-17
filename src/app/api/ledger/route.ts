@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { isLedgerType } from "@/lib/ledger-types";
 import { logAudit } from "@/lib/audit";
 import { LEDGER_TYPE_LABEL, formatCurrency } from "@/lib/format";
+import { createJournalEntryForLedger, isPaymentMethod } from "@/lib/accounting";
 
 function parseDateParam(value: string | null): Date | null {
   if (!value) return null;
@@ -49,11 +50,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { date, type, productId, productName, partnerId, quantity, unitPrice, memo } = body;
+  const { date, type, productId, productName, partnerId, quantity, unitPrice, memo, paymentMethod } = body;
 
   if (!isLedgerType(type)) {
     return NextResponse.json({ error: "장부 유형이 올바르지 않습니다." }, { status: 400 });
   }
+
+  const resolvedPaymentMethod = isPaymentMethod(paymentMethod) ? paymentMethod : "CASH";
 
   const parsedDate = typeof date === "string" ? new Date(date) : null;
   if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
@@ -103,6 +106,7 @@ export async function POST(request: NextRequest) {
       quantity: Math.round(parsedQuantity),
       unitPrice: Math.round(parsedUnitPrice),
       amount,
+      paymentMethod: resolvedPaymentMethod,
       memo: typeof memo === "string" && memo.trim() ? memo.trim() : null,
     },
     include: { product: true, partner: true },
@@ -133,6 +137,15 @@ export async function POST(request: NextRequest) {
     "CREATE",
     `${LEDGER_TYPE_LABEL[type]} ${entry.productName} ${formatCurrency(entry.amount)} 등록`
   );
+
+  await createJournalEntryForLedger({
+    id: entry.id,
+    date: entry.date,
+    type: entry.type,
+    amount: entry.amount,
+    paymentMethod: entry.paymentMethod,
+    memo: entry.memo,
+  });
 
   return NextResponse.json(entry, { status: 201 });
 }
