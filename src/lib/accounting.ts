@@ -25,7 +25,7 @@ export const DEFAULT_ACCOUNTS: { code: string; name: string; category: AccountCa
   { code: "831", name: "잡손실", category: "EXPENSE" },
 ];
 
-const PAYMENT_METHODS = ["CASH", "BANK", "CREDIT"] as const;
+export const PAYMENT_METHODS = ["CASH", "BANK", "CREDIT"] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export function isPaymentMethod(value: unknown): value is PaymentMethod {
@@ -34,7 +34,7 @@ export function isPaymentMethod(value: unknown): value is PaymentMethod {
 
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
   CASH: "현금",
-  BANK: "카드/계좌이체",
+  BANK: "세액",
   CREDIT: "외상",
 };
 

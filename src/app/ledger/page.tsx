@@ -4,14 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { formatCurrency, todayDateInputValue, LEDGER_TYPE_LABEL } from "@/lib/format";
 import { LEDGER_TYPES, type LedgerTypeValue } from "@/lib/ledger-types";
 import { useSuggestions } from "@/lib/use-suggestions";
+import { PAYMENT_METHOD_LABEL, type PaymentMethod as PaymentMethodValue } from "@/lib/accounting";
 
-const PAYMENT_METHODS = ["CASH", "BANK", "CREDIT"] as const;
-type PaymentMethodValue = (typeof PAYMENT_METHODS)[number];
-const PAYMENT_METHOD_LABEL: Record<PaymentMethodValue, string> = {
-  CASH: "현금",
-  BANK: "카드/계좌이체",
-  CREDIT: "외상",
-};
+// 일일 장부 입력 화면에서는 세액(계좌·카드, 세금계산서 거래)과 현금 두 가지만 선택하게 한다.
+const SELECTABLE_PAYMENT_METHODS: PaymentMethodValue[] = ["BANK", "CASH"];
+const SHIPPING_FEE = 6000;
+const VAT_RATE = 0.1;
 
 type Product = {
   id: string;
@@ -65,6 +63,9 @@ export default function LedgerPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodValue>("CASH");
   const [memo, setMemo] = useState("");
   const [items, setItems] = useState<ItemRow[]>([emptyItem()]);
+  const [isSample, setIsSample] = useState(false);
+  const [includeVat, setIncludeVat] = useState(false);
+  const [includeShipping, setIncludeShipping] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +104,9 @@ export default function LedgerPage() {
   function resetBatch() {
     setItems([emptyItem()]);
     setMemo("");
+    setIsSample(false);
+    setIncludeVat(false);
+    setIncludeShipping(false);
     // 거래처/결제수단/구분은 연달아 같은 조건으로 기입하는 경우가 많아 그대로 유지
   }
 
@@ -149,11 +153,43 @@ export default function LedgerPage() {
     return Array.from(set);
   }, [products, productNameSuggestions]);
 
-  const batchTotal = items.reduce((sum, row) => {
+  const itemsSubtotal = items.reduce((sum, row) => {
+    if (isSample) return sum; // 무상 샘플 제공은 금액 0으로 처리
     const qty = Number(row.quantity) || 0;
     const price = Number(row.unitPrice) || 0;
     return sum + Math.round(qty * price);
   }, 0);
+  const vatAmount = includeVat ? Math.round(itemsSubtotal * VAT_RATE) : 0;
+  const shippingAmount = includeShipping ? SHIPPING_FEE : 0;
+  const batchTotal = itemsSubtotal + vatAmount + shippingAmount;
+
+  async function postLedgerEntry(
+    productName: string,
+    quantity: number,
+    unitPrice: number,
+    productId?: string
+  ) {
+    const res = await fetch("/api/ledger", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date,
+        type,
+        productId: productId || undefined,
+        productName,
+        partnerId: partnerId || undefined,
+        partnerName,
+        quantity,
+        unitPrice,
+        paymentMethod,
+        memo,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error ?? "등록에 실패했습니다.");
+    }
+  }
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -162,30 +198,25 @@ export default function LedgerPage() {
     try {
       // 같은 거래처/날짜/결제수단으로 품목마다 각각 장부 항목을 하나씩 생성한다.
       for (const row of items) {
-        const res = await fetch("/api/ledger", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            date,
-            type,
-            productId: row.productId || undefined,
-            productName: row.productName,
-            partnerId: partnerId || undefined,
-            partnerName,
-            quantity: row.quantity,
-            unitPrice: row.unitPrice,
-            paymentMethod,
-            memo,
-          }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setError(data.error ?? "등록에 실패했습니다.");
-          return;
-        }
+        const qty = Number(row.quantity) || 1;
+        const unitPrice = isSample ? 0 : Number(row.unitPrice) || 0;
+        await postLedgerEntry(row.productName, qty, unitPrice, row.productId);
       }
+
+      // 부가세는 품목 소계 기준으로 계산해 별도 한 줄로 추가한다.
+      if (includeVat && vatAmount > 0) {
+        await postLedgerEntry("부가세(VAT 10%)", 1, vatAmount);
+      }
+
+      // 택배비는 모든 품목/부가세 계산이 끝난 뒤 정액으로 별도 추가한다.
+      if (includeShipping) {
+        await postLedgerEntry("택배비", 1, SHIPPING_FEE);
+      }
+
       resetBatch();
       await loadEntries(date);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "등록에 실패했습니다.");
     } finally {
       setSubmitting(false);
     }
@@ -261,7 +292,7 @@ export default function LedgerPage() {
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as PaymentMethodValue)}
             >
-              {PAYMENT_METHODS.map((pm) => (
+              {SELECTABLE_PAYMENT_METHODS.map((pm) => (
                 <option key={pm} value={pm}>
                   {PAYMENT_METHOD_LABEL[pm]}
                 </option>
@@ -287,7 +318,10 @@ export default function LedgerPage() {
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-slate-500">품목 (같은 거래처에서 여러 개 주문 시 아래에 추가하세요)</p>
+            <p className="text-xs font-medium text-slate-500">
+              품목 (같은 거래처에서 여러 개 주문 시 아래에 추가하세요)
+              {isSample && <span className="ml-2 text-amber-600">— 샘플 체크 시 단가는 무시되고 0원으로 기록됩니다</span>}
+            </p>
             <button type="button" className="btn-secondary px-3 py-1 text-xs" onClick={addItemRow}>
               + 품목 추가
             </button>
@@ -365,11 +399,56 @@ export default function LedgerPage() {
           </datalist>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-          <p className="text-sm text-slate-600">
-            이번 기입 합계: <span className="font-bold text-slate-800">{formatCurrency(batchTotal)}</span>
-            <span className="ml-1 text-xs text-slate-400">({items.length}건)</span>
-          </p>
+        <div className="flex flex-wrap items-center gap-5 border-t border-slate-100 pt-4 text-sm text-slate-600">
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              checked={isSample}
+              onChange={(e) => setIsSample(e.target.checked)}
+            />
+            무상 샘플 제공 (금액 0원 처리)
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              checked={includeVat}
+              onChange={(e) => setIncludeVat(e.target.checked)}
+            />
+            부가세(VAT) 10% 추가
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+              checked={includeShipping}
+              onChange={(e) => setIncludeShipping(e.target.checked)}
+            />
+            택배비 추가 (+{formatCurrency(SHIPPING_FEE)})
+          </label>
+        </div>
+
+        <div className="flex flex-wrap items-end justify-between gap-3 border-t border-slate-100 pt-4">
+          <div className="text-sm text-slate-600">
+            <p>
+              품목 소계: <span className="font-medium text-slate-800">{formatCurrency(itemsSubtotal)}</span>
+              {includeVat && (
+                <span className="ml-3">
+                  부가세: <span className="font-medium text-slate-800">{formatCurrency(vatAmount)}</span>
+                </span>
+              )}
+              {includeShipping && (
+                <span className="ml-3">
+                  택배비: <span className="font-medium text-slate-800">{formatCurrency(shippingAmount)}</span>
+                </span>
+              )}
+            </p>
+            <p className="mt-1">
+              이번 기입 합계: <span className="font-bold text-slate-800">{formatCurrency(batchTotal)}</span>
+              <span className="ml-1 text-xs text-slate-400">({items.length}개 품목)</span>
+            </p>
+          </div>
           <button type="submit" className="btn-primary" disabled={submitting}>
             {submitting ? "등록 중..." : "장부에 기입"}
           </button>
