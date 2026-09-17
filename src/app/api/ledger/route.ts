@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isLedgerType } from "@/lib/ledger-types";
-import { logAudit } from "@/lib/audit";
-import { LEDGER_TYPE_LABEL, formatCurrency } from "@/lib/format";
-import { createJournalEntryForLedger, isPaymentMethod } from "@/lib/accounting";
+import { createLedgerEntry, LedgerEntryInputError } from "@/lib/ledger-entry";
 
 function parseDateParam(value: string | null): Date | null {
   if (!value) return null;
@@ -50,107 +47,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { date, type, productId, productName, partnerId, partnerName, quantity, unitPrice, memo, paymentMethod, isSample } =
-    body;
-
-  if (!isLedgerType(type)) {
-    return NextResponse.json({ error: "장부 유형이 올바르지 않습니다." }, { status: 400 });
-  }
-
-  const resolvedPaymentMethod = isPaymentMethod(paymentMethod) ? paymentMethod : "CASH";
-
-  const parsedDate = typeof date === "string" ? new Date(date) : null;
-  if (!parsedDate || Number.isNaN(parsedDate.getTime())) {
-    return NextResponse.json({ error: "날짜를 올바르게 입력해주세요." }, { status: 400 });
-  }
-
-  if (typeof productName !== "string" || !productName.trim()) {
-    return NextResponse.json({ error: "항목 이름을 입력해주세요." }, { status: 400 });
-  }
-
-  const parsedQuantity = quantity === undefined || quantity === null || quantity === "" ? 1 : Number(quantity);
-  const parsedUnitPrice = Number(unitPrice);
-
-  if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
-    return NextResponse.json({ error: "수량을 올바르게 입력해주세요." }, { status: 400 });
-  }
-  if (!Number.isFinite(parsedUnitPrice) || parsedUnitPrice < 0) {
-    return NextResponse.json({ error: "단가/금액을 올바르게 입력해주세요." }, { status: 400 });
-  }
-
-  let linkedProductId: string | null = null;
-  if (typeof productId === "string" && productId.trim()) {
-    const product = await prisma.product.findUnique({ where: { id: productId } });
-    if (product) linkedProductId = product.id;
-  }
-
-  let linkedPartnerId: string | null = null;
-  let linkedPartnerName: string | null = null;
-  if (typeof partnerId === "string" && partnerId.trim()) {
-    const partner = await prisma.partner.findUnique({ where: { id: partnerId } });
-    if (partner) {
-      linkedPartnerId = partner.id;
-      linkedPartnerName = partner.name;
+  try {
+    const entry = await createLedgerEntry(body);
+    return NextResponse.json(entry, { status: 201 });
+  } catch (err) {
+    if (err instanceof LedgerEntryInputError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
+    throw err;
   }
-  if (!linkedPartnerId && typeof partnerName === "string" && partnerName.trim()) {
-    linkedPartnerName = partnerName.trim();
-  }
-
-  const amount = Math.round(parsedQuantity * parsedUnitPrice);
-
-  const entry = await prisma.ledgerEntry.create({
-    data: {
-      date: parsedDate,
-      type,
-      productId: linkedProductId,
-      productName: productName.trim(),
-      partnerId: linkedPartnerId,
-      partnerName: linkedPartnerName,
-      quantity: Math.round(parsedQuantity),
-      unitPrice: Math.round(parsedUnitPrice),
-      amount,
-      paymentMethod: resolvedPaymentMethod,
-      isSample: Boolean(isSample),
-      memo: typeof memo === "string" && memo.trim() ? memo.trim() : null,
-    },
-    include: { product: true, partner: true },
-  });
-
-  // 상품이 연결된 매출/매입 장부는 재고에도 자동 반영한다.
-  if (linkedProductId && (type === "SALE" || type === "PURCHASE")) {
-    const delta = type === "SALE" ? -Math.round(parsedQuantity) : Math.round(parsedQuantity);
-    const inventoryItem = await prisma.inventoryItem.upsert({
-      where: { productId: linkedProductId },
-      create: { productId: linkedProductId, currentStock: Math.max(0, delta) },
-      update: { currentStock: { increment: delta } },
-    });
-    await prisma.stockMovement.create({
-      data: {
-        inventoryItemId: inventoryItem.id,
-        type: type === "SALE" ? "OUT" : "IN",
-        quantity: Math.round(parsedQuantity),
-        reason: type === "SALE" ? "매출 출고 (자동)" : "매입 입고 (자동)",
-        ledgerEntryId: entry.id,
-      },
-    });
-  }
-
-  await logAudit(
-    "LedgerEntry",
-    entry.id,
-    "CREATE",
-    `${LEDGER_TYPE_LABEL[type]} ${entry.productName} ${formatCurrency(entry.amount)} 등록`
-  );
-
-  await createJournalEntryForLedger({
-    id: entry.id,
-    date: entry.date,
-    type: entry.type,
-    amount: entry.amount,
-    paymentMethod: entry.paymentMethod,
-    memo: entry.memo,
-  });
-
-  return NextResponse.json(entry, { status: 201 });
 }

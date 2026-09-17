@@ -163,56 +163,46 @@ export default function LedgerPage() {
   const shippingAmount = includeShipping ? SHIPPING_FEE : 0;
   const batchTotal = itemsSubtotal + vatAmount + shippingAmount;
 
-  async function postLedgerEntry(
-    productName: string,
-    quantity: number,
-    unitPrice: number,
-    productId?: string,
-    sample = false
-  ) {
-    const res = await fetch("/api/ledger", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date,
-        type,
-        productId: productId || undefined,
-        productName,
-        partnerId: partnerId || undefined,
-        partnerName,
-        quantity,
-        unitPrice,
-        paymentMethod,
-        memo,
-        isSample: sample,
-      }),
-    });
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error ?? "등록에 실패했습니다.");
-    }
-  }
-
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      // 같은 거래처/날짜/결제수단으로 품목마다 각각 장부 항목을 하나씩 생성한다.
-      for (const row of items) {
-        const qty = Number(row.quantity) || 1;
-        const unitPrice = Number(row.unitPrice) || 0;
-        await postLedgerEntry(row.productName, qty, unitPrice, row.productId, isSample);
-      }
+      const batchItems = items.map((row) => ({
+        productId: row.productId || undefined,
+        productName: row.productName,
+        quantity: Number(row.quantity) || 1,
+        unitPrice: Number(row.unitPrice) || 0,
+      }));
 
       // 부가세는 품목 소계 기준으로 계산해 별도 한 줄로 추가한다.
       if (includeVat && vatAmount > 0) {
-        await postLedgerEntry("부가세(VAT 10%)", 1, vatAmount, undefined, isSample);
+        batchItems.push({ productId: undefined, productName: "부가세(VAT 10%)", quantity: 1, unitPrice: vatAmount });
       }
 
       // 택배비는 모든 품목/부가세 계산이 끝난 뒤 정액으로 별도 추가한다.
       if (includeShipping) {
-        await postLedgerEntry("택배비", 1, SHIPPING_FEE, undefined, isSample);
+        batchItems.push({ productId: undefined, productName: "택배비", quantity: 1, unitPrice: SHIPPING_FEE });
+      }
+
+      const res = await fetch("/api/ledger/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date,
+          type,
+          partnerId: partnerId || undefined,
+          partnerName,
+          paymentMethod,
+          memo,
+          isSample,
+          items: batchItems,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "등록에 실패했습니다.");
+        return;
       }
 
       resetBatch();
