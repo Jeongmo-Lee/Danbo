@@ -86,6 +86,21 @@ export default function NewReceiptPage() {
     });
   }
 
+  function handleItemNameInput(index: number, value: string) {
+    const match = products.find((p) => p.name === value);
+    updateItem(index, {
+      name: value,
+      productId: match ? match.id : "",
+      unitPrice: match ? String(match.unitPrice) : items[index].unitPrice,
+    });
+  }
+
+  function handleReceiverNameInput(value: string) {
+    const match = partners.find((p) => p.name === value);
+    setReceiverName(value);
+    setPartnerId(match ? match.id : "");
+  }
+
   function addItemRow() {
     setItems((rows) => [...rows, emptyItem()]);
   }
@@ -214,13 +229,16 @@ export default function NewReceiptPage() {
             <input
               className="input"
               required
+              list="receiptPartnerOptions"
               value={receiverName}
-              onChange={(e) => {
-                setPartnerId("");
-                setReceiverName(e.target.value);
-              }}
+              onChange={(e) => handleReceiverNameInput(e.target.value)}
               placeholder="예: 홍길동"
             />
+            <datalist id="receiptPartnerOptions">
+              {partners.map((partner) => (
+                <option key={partner.id} value={partner.name} />
+              ))}
+            </datalist>
           </div>
           <div>
             <label className="label">작성일자 *</label>
@@ -268,9 +286,15 @@ export default function NewReceiptPage() {
                   <input
                     className="input"
                     required
+                    list="receiptProductOptions"
                     value={row.name}
-                    onChange={(e) => updateItem(index, { productId: "", name: e.target.value })}
+                    onChange={(e) => handleItemNameInput(index, e.target.value)}
                   />
+                  <datalist id="receiptProductOptions">
+                    {products.map((product) => (
+                      <option key={product.id} value={product.name} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="sm:col-span-2">
                   <label className="label">수량</label>

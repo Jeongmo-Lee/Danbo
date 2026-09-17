@@ -46,6 +46,7 @@ type FormState = {
   productId: string;
   productName: string;
   partnerId: string;
+  partnerName: string;
   quantity: string;
   unitPrice: string;
   paymentMethod: PaymentMethodValue;
@@ -59,6 +60,7 @@ function emptyForm(date: string): FormState {
     productId: "",
     productName: "",
     partnerId: "",
+    partnerName: "",
     quantity: "1",
     unitPrice: "",
     paymentMethod: "CASH",
@@ -117,6 +119,28 @@ export default function LedgerPage() {
       unitPrice: product ? String(product.unitPrice) : f.unitPrice,
     }));
   }
+
+  function handleProductNameInput(value: string) {
+    const match = products.find((p) => p.name === value);
+    setForm((f) => ({
+      ...f,
+      productName: value,
+      productId: match ? match.id : "",
+      unitPrice: match ? String(match.unitPrice) : f.unitPrice,
+    }));
+  }
+
+  function handlePartnerNameInput(value: string) {
+    const match = partners.find((p) => p.name === value);
+    setForm((f) => ({ ...f, partnerName: value, partnerId: match ? match.id : "" }));
+  }
+
+  const productNameOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) set.add(p.name);
+    for (const n of productNameSuggestions) set.add(n);
+    return Array.from(set);
+  }, [products, productNameSuggestions]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -218,29 +242,29 @@ export default function LedgerPage() {
             required
             list="productNameSuggestions"
             value={form.productName}
-            onChange={(e) => setForm((f) => ({ ...f, productId: "", productName: e.target.value }))}
+            onChange={(e) => handleProductNameInput(e.target.value)}
             placeholder="예: 사무용 A4 용지 / 사무실 임대료"
           />
           <datalist id="productNameSuggestions">
-            {productNameSuggestions.map((name) => (
+            {productNameOptions.map((name) => (
               <option key={name} value={name} />
             ))}
           </datalist>
         </div>
         <div className="sm:col-span-2">
           <label className="label">거래처</label>
-          <select
+          <input
             className="input"
-            value={form.partnerId}
-            onChange={(e) => setForm((f) => ({ ...f, partnerId: e.target.value }))}
-          >
-            <option value="">선택 안 함</option>
+            list="partnerNameOptions"
+            value={form.partnerName}
+            onChange={(e) => handlePartnerNameInput(e.target.value)}
+            placeholder="거래처명 입력 (DB에 있으면 자동 연결)"
+          />
+          <datalist id="partnerNameOptions">
             {partners.map((partner) => (
-              <option key={partner.id} value={partner.id}>
-                {partner.name}
-              </option>
+              <option key={partner.id} value={partner.name} />
             ))}
-          </select>
+          </datalist>
         </div>
         <div>
           <label className="label">결제수단</label>

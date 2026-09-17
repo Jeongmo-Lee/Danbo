@@ -8,7 +8,8 @@ import { replaceJournalEntryForLedger, isPaymentMethod } from "@/lib/accounting"
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await request.json();
-  const { date, type, productId, productName, partnerId, quantity, unitPrice, memo, paymentMethod } = body;
+  const { date, type, productId, productName, partnerId, partnerName, quantity, unitPrice, memo, paymentMethod } =
+    body;
 
   const existing = await prisma.ledgerEntry.findUnique({ where: { id } });
   if (!existing) {
@@ -48,14 +49,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
   }
 
-  if (partnerId !== undefined) {
+  if (partnerId !== undefined || partnerName !== undefined) {
+    const typedName = typeof partnerName === "string" && partnerName.trim() ? partnerName.trim() : null;
     if (typeof partnerId === "string" && partnerId.trim()) {
       const partner = await prisma.partner.findUnique({ where: { id: partnerId } });
       data.partnerId = partner ? partner.id : null;
-      data.partnerName = partner ? partner.name : null;
+      data.partnerName = partner ? partner.name : typedName;
     } else {
       data.partnerId = null;
-      data.partnerName = null;
+      data.partnerName = typedName;
     }
   }
 

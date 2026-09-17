@@ -50,7 +50,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const { date, type, productId, productName, partnerId, quantity, unitPrice, memo, paymentMethod } = body;
+  const { date, type, productId, productName, partnerId, partnerName, quantity, unitPrice, memo, paymentMethod } =
+    body;
 
   if (!isLedgerType(type)) {
     return NextResponse.json({ error: "장부 유형이 올바르지 않습니다." }, { status: 400 });
@@ -91,6 +92,9 @@ export async function POST(request: NextRequest) {
       linkedPartnerId = partner.id;
       linkedPartnerName = partner.name;
     }
+  }
+  if (!linkedPartnerId && typeof partnerName === "string" && partnerName.trim()) {
+    linkedPartnerName = partnerName.trim();
   }
 
   const amount = Math.round(parsedQuantity * parsedUnitPrice);
