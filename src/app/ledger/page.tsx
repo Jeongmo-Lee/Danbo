@@ -40,32 +40,15 @@ type LedgerEntry = {
   memo: string | null;
 };
 
-type FormState = {
-  date: string;
-  type: LedgerTypeValue;
+type ItemRow = {
   productId: string;
   productName: string;
-  partnerId: string;
-  partnerName: string;
   quantity: string;
   unitPrice: string;
-  paymentMethod: PaymentMethodValue;
-  memo: string;
 };
 
-function emptyForm(date: string): FormState {
-  return {
-    date,
-    type: "SALE",
-    productId: "",
-    productName: "",
-    partnerId: "",
-    partnerName: "",
-    quantity: "1",
-    unitPrice: "",
-    paymentMethod: "CASH",
-    memo: "",
-  };
+function emptyItem(): ItemRow {
+  return { productId: "", productName: "", quantity: "1", unitPrice: "" };
 }
 
 export default function LedgerPage() {
@@ -74,7 +57,15 @@ export default function LedgerPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState<FormState>(() => emptyForm(todayDateInputValue()));
+
+  // 이번 기입 배치(같은 거래처/결제수단으로 여러 품목을 한 번에 기입)
+  const [type, setType] = useState<LedgerTypeValue>("SALE");
+  const [partnerId, setPartnerId] = useState("");
+  const [partnerName, setPartnerName] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodValue>("CASH");
+  const [memo, setMemo] = useState("");
+  const [items, setItems] = useState<ItemRow[]>([emptyItem()]);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const productNameSuggestions = useSuggestions("ledgerProductName");
@@ -107,32 +98,48 @@ export default function LedgerPage() {
 
   useEffect(() => {
     loadEntries(date);
-    setForm((f) => ({ ...f, date }));
   }, [date]);
 
-  function handleProductSelect(productId: string) {
-    const product = products.find((p) => p.id === productId);
-    setForm((f) => ({
-      ...f,
-      productId,
-      productName: product ? product.name : f.productName,
-      unitPrice: product ? String(product.unitPrice) : f.unitPrice,
-    }));
+  function resetBatch() {
+    setItems([emptyItem()]);
+    setMemo("");
+    // 거래처/결제수단/구분은 연달아 같은 조건으로 기입하는 경우가 많아 그대로 유지
   }
 
-  function handleProductNameInput(value: string) {
+  function updateItem(index: number, patch: Partial<ItemRow>) {
+    setItems((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  function handleItemProductSelect(index: number, productId: string) {
+    const product = products.find((p) => p.id === productId);
+    updateItem(index, {
+      productId,
+      productName: product ? product.name : items[index].productName,
+      unitPrice: product ? String(product.unitPrice) : items[index].unitPrice,
+    });
+  }
+
+  function handleItemNameInput(index: number, value: string) {
     const match = products.find((p) => p.name === value);
-    setForm((f) => ({
-      ...f,
+    updateItem(index, {
       productName: value,
       productId: match ? match.id : "",
-      unitPrice: match ? String(match.unitPrice) : f.unitPrice,
-    }));
+      unitPrice: match ? String(match.unitPrice) : items[index].unitPrice,
+    });
   }
 
   function handlePartnerNameInput(value: string) {
     const match = partners.find((p) => p.name === value);
-    setForm((f) => ({ ...f, partnerName: value, partnerId: match ? match.id : "" }));
+    setPartnerName(value);
+    setPartnerId(match ? match.id : "");
+  }
+
+  function addItemRow() {
+    setItems((rows) => [...rows, emptyItem()]);
+  }
+
+  function removeItemRow(index: number) {
+    setItems((rows) => (rows.length > 1 ? rows.filter((_, i) => i !== index) : rows));
   }
 
   const productNameOptions = useMemo(() => {
@@ -142,22 +149,42 @@ export default function LedgerPage() {
     return Array.from(set);
   }, [products, productNameSuggestions]);
 
+  const batchTotal = items.reduce((sum, row) => {
+    const qty = Number(row.quantity) || 0;
+    const price = Number(row.unitPrice) || 0;
+    return sum + Math.round(qty * price);
+  }, 0);
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/ledger", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "등록에 실패했습니다.");
-        return;
+      // 같은 거래처/날짜/결제수단으로 품목마다 각각 장부 항목을 하나씩 생성한다.
+      for (const row of items) {
+        const res = await fetch("/api/ledger", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date,
+            type,
+            productId: row.productId || undefined,
+            productName: row.productName,
+            partnerId: partnerId || undefined,
+            partnerName,
+            quantity: row.quantity,
+            unitPrice: row.unitPrice,
+            paymentMethod,
+            memo,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error ?? "등록에 실패했습니다.");
+          return;
+        }
       }
-      setForm((f) => ({ ...emptyForm(date), type: f.type }));
+      resetBatch();
       await loadEntries(date);
     } finally {
       setSubmitting(false);
@@ -176,11 +203,6 @@ export default function LedgerPage() {
     const netProfit = totals.SALE + totals.INCOME - totals.PURCHASE - totals.EXPENSE;
     return { ...totals, netProfit };
   }, [entries]);
-
-  const previewAmount =
-    form.quantity && form.unitPrice
-      ? Math.round(Number(form.quantity) * Number(form.unitPrice)) || 0
-      : 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -205,130 +227,154 @@ export default function LedgerPage() {
         <SummaryCard label="당일 손익" value={summary.netProfit} tone={summary.netProfit >= 0 ? "text-brand-700" : "text-red-600"} />
       </div>
 
-      <form onSubmit={handleCreate} className="card grid grid-cols-1 gap-4 sm:grid-cols-6">
-        <div>
-          <label className="label">구분 *</label>
-          <select
-            className="input"
-            value={form.type}
-            onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as LedgerTypeValue }))}
-          >
-            {LEDGER_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {LEDGER_TYPE_LABEL[type]}
-              </option>
-            ))}
-          </select>
+      <form onSubmit={handleCreate} className="card flex flex-col gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <div>
+            <label className="label">구분 *</label>
+            <select className="input" value={type} onChange={(e) => setType(e.target.value as LedgerTypeValue)}>
+              {LEDGER_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {LEDGER_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">거래처</label>
+            <input
+              className="input"
+              list="partnerNameOptions"
+              value={partnerName}
+              onChange={(e) => handlePartnerNameInput(e.target.value)}
+              placeholder="거래처명 입력 (DB에 있으면 자동 연결)"
+            />
+            <datalist id="partnerNameOptions">
+              {partners.map((partner) => (
+                <option key={partner.id} value={partner.name} />
+              ))}
+            </datalist>
+          </div>
+          <div>
+            <label className="label">결제수단</label>
+            <select
+              className="input"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethodValue)}
+            >
+              {PAYMENT_METHODS.map((pm) => (
+                <option key={pm} value={pm}>
+                  {PAYMENT_METHOD_LABEL[pm]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">메모 (전체 공통)</label>
+            <input
+              className="input"
+              list="ledgerMemoSuggestions"
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="선택 입력"
+            />
+            <datalist id="ledgerMemoSuggestions">
+              {memoSuggestions.map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
+          </div>
         </div>
-        <div className="sm:col-span-2">
-          <label className="label">상품 DB에서 불러오기</label>
-          <select
-            className="input"
-            value={form.productId}
-            onChange={(e) => handleProductSelect(e.target.value)}
-          >
-            <option value="">직접 입력</option>
-            {products.map((product) => (
-              <option key={product.id} value={product.id}>
-                {product.name} ({formatCurrency(product.unitPrice)})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="sm:col-span-2">
-          <label className="label">항목 이름 *</label>
-          <input
-            className="input"
-            required
-            list="productNameSuggestions"
-            value={form.productName}
-            onChange={(e) => handleProductNameInput(e.target.value)}
-            placeholder="예: 사무용 A4 용지 / 사무실 임대료"
-          />
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-medium text-slate-500">품목 (같은 거래처에서 여러 개 주문 시 아래에 추가하세요)</p>
+            <button type="button" className="btn-secondary px-3 py-1 text-xs" onClick={addItemRow}>
+              + 품목 추가
+            </button>
+          </div>
+
+          {items.map((row, index) => (
+            <div key={index} className="grid grid-cols-1 gap-3 rounded-lg border border-slate-100 p-3 sm:grid-cols-12 sm:items-end">
+              <div className="sm:col-span-2">
+                <label className="label">상품 DB</label>
+                <select className="input" value={row.productId} onChange={(e) => handleItemProductSelect(index, e.target.value)}>
+                  <option value="">직접 입력</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:col-span-4">
+                <label className="label">항목 이름 *</label>
+                <input
+                  className="input"
+                  required
+                  list="productNameSuggestions"
+                  value={row.productName}
+                  onChange={(e) => handleItemNameInput(index, e.target.value)}
+                  placeholder="예: 사무용 A4 용지 / 사무실 임대료"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">수량</label>
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  value={row.quantity}
+                  onChange={(e) => updateItem(index, { quantity: e.target.value })}
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="label">단가 *</label>
+                <input
+                  className="input"
+                  required
+                  type="number"
+                  min={0}
+                  value={row.unitPrice}
+                  onChange={(e) => updateItem(index, { productId: "", unitPrice: e.target.value })}
+                  placeholder="0"
+                />
+              </div>
+              <div className="sm:col-span-1">
+                <label className="label">금액</label>
+                <div className="input flex items-center bg-slate-50 text-slate-600">
+                  {formatCurrency(Math.round((Number(row.quantity) || 0) * (Number(row.unitPrice) || 0)))}
+                </div>
+              </div>
+              <div className="sm:col-span-1">
+                <button
+                  type="button"
+                  className="btn-danger w-full px-2 py-2 text-xs"
+                  onClick={() => removeItemRow(index)}
+                  disabled={items.length <= 1}
+                >
+                  삭제
+                </button>
+              </div>
+            </div>
+          ))}
+
           <datalist id="productNameSuggestions">
             {productNameOptions.map((name) => (
               <option key={name} value={name} />
             ))}
           </datalist>
         </div>
-        <div className="sm:col-span-2">
-          <label className="label">거래처</label>
-          <input
-            className="input"
-            list="partnerNameOptions"
-            value={form.partnerName}
-            onChange={(e) => handlePartnerNameInput(e.target.value)}
-            placeholder="거래처명 입력 (DB에 있으면 자동 연결)"
-          />
-          <datalist id="partnerNameOptions">
-            {partners.map((partner) => (
-              <option key={partner.id} value={partner.name} />
-            ))}
-          </datalist>
-        </div>
-        <div>
-          <label className="label">결제수단</label>
-          <select
-            className="input"
-            value={form.paymentMethod}
-            onChange={(e) => setForm((f) => ({ ...f, paymentMethod: e.target.value as PaymentMethodValue }))}
-          >
-            {PAYMENT_METHODS.map((pm) => (
-              <option key={pm} value={pm}>
-                {PAYMENT_METHOD_LABEL[pm]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="label">수량</label>
-          <input
-            className="input"
-            type="number"
-            min={1}
-            value={form.quantity}
-            onChange={(e) => setForm((f) => ({ ...f, quantity: e.target.value }))}
-          />
-        </div>
-        <div>
-          <label className="label">단가 *</label>
-          <input
-            className="input"
-            required
-            type="number"
-            min={0}
-            value={form.unitPrice}
-            onChange={(e) => setForm((f) => ({ ...f, productId: "", unitPrice: e.target.value }))}
-            placeholder="0"
-          />
-        </div>
-        <div>
-          <label className="label">합계 금액</label>
-          <div className="input flex items-center bg-slate-50 text-slate-600">
-            {formatCurrency(previewAmount)}
-          </div>
-        </div>
-        <div className="sm:col-span-3">
-          <label className="label">메모</label>
-          <input
-            className="input"
-            list="ledgerMemoSuggestions"
-            value={form.memo}
-            onChange={(e) => setForm((f) => ({ ...f, memo: e.target.value }))}
-            placeholder="선택 입력"
-          />
-          <datalist id="ledgerMemoSuggestions">
-            {memoSuggestions.map((memo) => (
-              <option key={memo} value={memo} />
-            ))}
-          </datalist>
-        </div>
-        <div className="flex items-end sm:col-span-2">
-          <button type="submit" className="btn-primary w-full" disabled={submitting}>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+          <p className="text-sm text-slate-600">
+            이번 기입 합계: <span className="font-bold text-slate-800">{formatCurrency(batchTotal)}</span>
+            <span className="ml-1 text-xs text-slate-400">({items.length}건)</span>
+          </p>
+          <button type="submit" className="btn-primary" disabled={submitting}>
             {submitting ? "등록 중..." : "장부에 기입"}
           </button>
         </div>
-        {error && <p className="text-sm text-red-600 sm:col-span-6">{error}</p>}
+        {error && <p className="text-sm text-red-600">{error}</p>}
       </form>
 
       <div className="card overflow-x-auto">
