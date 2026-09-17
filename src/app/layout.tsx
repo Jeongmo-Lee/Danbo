@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { NavLink } from "./nav-link";
+import { NavLink, LogoutButton } from "./nav-link";
 
 export const metadata: Metadata = {
   title: "단보 통합 관리",
@@ -27,7 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <NavLink href="/products">상품</NavLink>
                 <NavLink href="/partners">거래처</NavLink>
                 <NavLink href="/receipts">영수증</NavLink>
+                <NavLink href="/export">내보내기</NavLink>
                 <NavLink href="/settings">설정</NavLink>
+                <LogoutButton />
               </nav>
             </div>
           </header>
