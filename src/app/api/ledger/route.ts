@@ -106,5 +106,24 @@ export async function POST(request: NextRequest) {
     include: { product: true, partner: true },
   });
 
+  // 상품이 연결된 매출/매입 장부는 재고에도 자동 반영한다.
+  if (linkedProductId && (type === "SALE" || type === "PURCHASE")) {
+    const delta = type === "SALE" ? -Math.round(parsedQuantity) : Math.round(parsedQuantity);
+    const inventoryItem = await prisma.inventoryItem.upsert({
+      where: { productId: linkedProductId },
+      create: { productId: linkedProductId, currentStock: Math.max(0, delta) },
+      update: { currentStock: { increment: delta } },
+    });
+    await prisma.stockMovement.create({
+      data: {
+        inventoryItemId: inventoryItem.id,
+        type: type === "SALE" ? "OUT" : "IN",
+        quantity: Math.round(parsedQuantity),
+        reason: type === "SALE" ? "매출 출고 (자동)" : "매입 입고 (자동)",
+        ledgerEntryId: entry.id,
+      },
+    });
+  }
+
   return NextResponse.json(entry, { status: 201 });
 }

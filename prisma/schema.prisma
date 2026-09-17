@@ -18,6 +18,7 @@ model Product {
 
   ledgerEntries LedgerEntry[]
   receiptItems  ReceiptItem[]
+  inventoryItem InventoryItem?
 }
 
 model Partner {
@@ -36,6 +37,7 @@ model Partner {
 
   ledgerEntries LedgerEntry[]
   receipts      Receipt[]
+  customer      Customer?
 }
 
 // Singleton row (id = "default") holding the user's own business info,
@@ -110,4 +112,88 @@ model ReceiptItem {
 
   receipt Receipt  @relation(fields: [receiptId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+// ============================================
+// 전사 관리 확장: 재고 / CRM / 마케팅 / 일일 메모
+// ============================================
+
+model InventoryItem {
+  id           String   @id @default(cuid())
+  productId    String   @unique
+  currentStock Int      @default(0)
+  safetyStock  Int      @default(0) // 이 수량 밑으로 떨어지면 대시보드에 경고
+  location     String?
+  updatedAt    DateTime @updatedAt
+
+  product   Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  movements StockMovement[]
+}
+
+// type: "IN" | "OUT" | "ADJUST"
+model StockMovement {
+  id              String   @id @default(cuid())
+  inventoryItemId String
+  type            String
+  quantity        Int
+  reason          String?
+  ledgerEntryId   String?
+  createdAt       DateTime @default(now())
+
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+}
+
+// type: "DOMESTIC" | "FOREIGN"
+model Customer {
+  id        String   @id @default(cuid())
+  partnerId String?  @unique
+  name      String
+  type      String   @default("DOMESTIC")
+  grade     String?
+  tags      String?
+  phone     String?
+  memo      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  partner    Partner?           @relation(fields: [partnerId], references: [id], onDelete: SetNull)
+  activities CustomerActivity[]
+}
+
+// type: "상담" | "주문" | "클레임" | "기타"
+model CustomerActivity {
+  id         String   @id @default(cuid())
+  customerId String
+  date       DateTime
+  type       String
+  content    String
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+}
+
+model MarketingRecord {
+  id        String   @id @default(cuid())
+  date      DateTime
+  channel   String // "매장 DP" | "인스타그램" | "기타"
+  title     String
+  metrics   String?
+  memo      String?
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+model DailyNote {
+  id        String   @id @default(cuid())
+  date      DateTime
+  tag       String? // "재고" | "고객" | "매출" | "기타"
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([date])
 }
